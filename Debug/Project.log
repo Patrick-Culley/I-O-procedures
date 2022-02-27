@@ -1,0 +1,4 @@
+﻿  Assembling Proj6_culleyp.asm...
+Proj6_culleyp.asm(33): warning A6001: no return from procedure
+Proj6_culleyp.asm(33): warning A6004: procedure argument or local not referenced : sumLoop
+  Project.vcxproj -> C:\CS271\Project6\Debug\Project.exe
