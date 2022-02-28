@@ -17,10 +17,13 @@ mDisplayString	 MACRO	 chars					; displays strings using WriteString method
   POP		EDX 
 ENDM 
 
-mGetString		 MACRO	 chars					; prints prompt to user and gathers integer 
+mGetString		 MACRO	 chars, num					; prints prompt to user and gathers integer 
   PUSH		EDX 
   PUSH		EAX 
   mDisplayString	chars
+  CALL		ReadChar
+  MOV		userNum, AL 
+  CALL		WriteChar
   POP		EAX
   POP		EDX
 ENDM 
@@ -33,18 +36,19 @@ intro2		BYTE	 "Please provide 10 signed decimal integers.",13,10,
 					 "Each number needs to be small enough to fit inside a 32 bit register. After you have finished",13,10,
 					 "inputting the raw numbers I will display a list of the integers, their sum, and their average",13,10, 
 					 "value",13,10,13,10,0
-prompt		BYTE	 "Please enter a signed integer: ",13,10
+prompt		BYTE	 "Please enter a signed integer: ",0
+userNum		BYTE	  ? 
 
 
 .code
 main PROC
-  mDisplayString	OFFSET intro1				; print intro1 to screen 
+  mDisplayString	OFFSET intro1						; print intro1 to screen 
   
-  mDisplayString	OFFSET intro2				; print intro2 to screen 
+  mDisplayString	OFFSET intro2						; print intro2 to screen 
 
-  mGetString		OFFSET prompt				; print prompt and read/store user-entered integer 
+  mGetString		OFFSET prompt, OFFSET userNum		; print prompt and read/store user-entered integer 
 
-  INVOKE ExitProcess,0							; exit to operating system
+  INVOKE ExitProcess,0									; exit to operating system
 main ENDP
 
 
