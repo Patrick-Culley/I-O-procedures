@@ -74,49 +74,50 @@ ReadVal		PROC
   PUSH		EAX 
   PUSH		EDX
 
+  MOV		ECX, 10						; start outer loop counter
+
+_start:
   mGetString  [EBP + 16], [EBP + 12], [EBP + 8], [EBP + 20]
+  PUSH		ECX							; push outer loop counter before setting inner loop counter 
+
+_outerLoop: 
   PUSH		EBX 
   MOV		ESI, [EBP + 12]				; move character array to ESI 
   MOV		EBX, [EBP + 8]				 
   MOV		ECX, [EBX]					; move count of characters to ECX
   POP		EBX 
 
-_loopChars:	
-  LODSB														; compares if number is in-range from 48 to 57
-  PUSH		EBX
-  MOV		EBX, [EBP + 8]
-  CMP		ECX, [EBX]										; compare counter to length
-  JE		_checkSign										; compare if first char is negative 
-  CMP		AL, 48
-  JB		_invalidInput
-  CMP		AL, 57
-  JA		_invalidInput
-  LOOP		_loopChars
-  JMP		_theEnd 
+	_innerLoop:	
+	  LODSB
+	  CMP		AL, 48
+	  JB		_invalidInput
+	  CMP		AL, 57
+	  JA		_invalidInput
+	  LOOP		_innerLoop
+	  JMP		_theEnd 
 
-_checkSign:
-  POP		EBX
-  CMP		AL, 45 
-  JE		_changeSign 
-  CMP		AL, 43 
-  JE		_changeSign
-  JMP		_invalidInput 
+	_checkSign:
+	  CMP		AL, 45 
+	  JE		_changeSign 
+	  CMP		AL, 43 
+	  JE		_changeSign
+	  JMP		_invalidInput 
 
-_changeSign: 
-  LOOP		_loopChars
-
+	_changeSign: 
+	  LOOP		_innerLoop 
+	  JMP		_start
 
 _invalidInput: 
   mGetString  [EBP + 24], [EBP + 12], [EBP + 8], [EBP + 20]
-  PUSH		EBX 
-  MOV		ESI, [EBP + 12]				; move character array to ESI 
-  MOV		EBX, [EBP + 8]				 
-  MOV		ECX, [EBX]					; move count of characters to ECX
-  POP		EBX 
-  JMP		_loopChars 
-
+  JMP		_outerLoop 
 
 _theEnd:
+  POP		ECX 
+  DEC		ECX
+  CMP		ECX, 0
+  JA		_start 
+
+
   POP		EDX 
   POP		EAX 
   POP		EBX 
