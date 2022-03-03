@@ -68,7 +68,7 @@ main ENDP
 
 
 ReadVal		PROC
-  LOCAL		loopCounter:DWORD
+  LOCAL		loopCounter:DWORD, signCount:DWORD
   PUSH		ECX
   PUSH		ESI
   PUSH		EBX 
@@ -79,65 +79,67 @@ _start:
   mGetString  [EBP + 16], [EBP + 28], [EBP + 8], [EBP + 20]						 
 
 _outerLoop: 
+  MOV		signCount, 1
+
   PUSH		ECX							; push running total 
   PUSH		EBX
   MOV		ESI, [EBP + 28]				; move character array to ESI 
   MOV		EBX, [EBP + 8]				 
   MOV		ECX, [EBX]					; move char count from EBX to ECX to act as loop counter 
-  MOV		loopCounter, ECX
+  MOV		loopCounter, ECX			; local variable used as loop counter 
   MOV		EDI, [EBP + 12]
   POP		EBX
   POP		ECX
 
-  MOV		EAX, 0
-  MOV		ECX, 0						; this will be the running total of calculations 
+  MOV		EAX, 0						; begins accumulator for convertToNum 
+  MOV		ECX, 0						; this will initialize the holding number
 
 	_innerLoop:	
 	  LODSB		
-	  JMP		_checkIfSign			; if counter and first index match, check sign 
+	  CMP		signCount, 1
+	  JE		_verifySign 
 	  CMP		AL, 48
 	  JB		_invalidInput
 	  CMP		AL, 57
 	  JA		_invalidInput
-	  JMP		_innerLoop
-	  JMP		_theEnd 
+	  JMP		_convertToNum
 
-	_checkIfSign:
-	  CMP		AL, 45 
-	  JE		_changeSign				; if equal to 45, sign is neg
-	  CMP		AL, 43 
-	  JE		_changeSign				; if equal to 43 sign is positive 
-	  CMP		AL, 48					; if below 48 input is invalid 
-	  JB		_invalidInput
+
+    _verifySign: 
+	  CMP		AL, 43
+	  JE		_goPosi
+	  CMP		AL, 45
+	  JE		_goNeg
+	  CMP		AL, 48 
+	  JB		_invalidInput 
 	  CMP		AL, 57
 	  JA		_invalidInput
-	  JMP		_convertToNum			; else convert number to SDWORD arr 
+	  JMP		_convertToNum
+
+	_goPosi: 
+	  DEC		loopCounter
+	  DEC		signCount 
+	  JMP		_innerLoop
+
+	_goNeg: 
+	  DEC		loopCounter
+	  DEC		signCount 
+	  MOV		AL, 0FEh
+	  SUB		AL, 2
+	  JMP		_innerLoop 
 
 	_convertToNum: 
 	  SUB		AL, 48				
 	  PUSH		EAX						; push to preserve num stored in EAX 
-
 	  MOV		EAX, ECX 
 	  MOV		EBX, 10
 	  MUL		EBX
-
 	  POP		ECX 
 	  ADD		EAX, ECX
-	  MOV		ECX, EAX 
-
 	  DEC		loopCounter
 	  CMP		loopCounter, 0
 	  JE		_theEnd 		
 	  JMP		_innerLoop 
-
-	_changeSign: 
-	  PUSH		EAX
-	  MOV		EAX, 10					; if no number after -, input is invalid 
-	  POP		EAX 
-	  CMP		[ESI + 1], EAX
-	  JE		_invalidInput
-	  LOOP		_innerLoop 
-	  JMP		_start
 
 _invalidInput: 
   mGetString  [EBP + 24], [EBP + 28], [EBP + 8], [EBP + 20]
