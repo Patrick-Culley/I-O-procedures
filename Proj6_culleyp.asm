@@ -35,18 +35,19 @@ ENDM
 
 
 .data
-intro1		BYTE	 "Programming assignment 6: Designing low-level I/O procedures",13,10,
-					 "Written by: Patrick Culley",13,10,13,10,0
-intro2		BYTE	 "Please provide 10 signed decimal integers.",13,10,
-					 "Each number needs to be small enough to fit inside a 32 bit register. After you have finished",13,10,
-					 "inputting the raw numbers I will display a list of the integers, their sum, and their average",13,10, 
-					 "value",13,10,13,10,0
-prompt		BYTE	 "Please enter a signed integer: ",0
-invalidMsg	BYTE	 "ERROR: You did not enter a signed number or your number was too big.",13,10,
-					 "Please try again: ",0
-inputNum	BYTE	  11 DUP (?)
-counter		DWORD	  ? 
-inputSize	DWORD	  11 
+intro1			BYTE		 "Programming assignment 6: Designing low-level I/O procedures",13,10,
+							 "Written by: Patrick Culley",13,10,13,10,0
+intro2			BYTE		 "Please provide 10 signed decimal integers.",13,10,
+							 "Each number needs to be small enough to fit inside a 32 bit register. After you have finished",13,10,
+							 "inputting the raw numbers I will display a list of the integers, their sum, and their average",13,10, 
+							 "value",13,10,13,10,0
+prompt			BYTE		 "Please enter a signed integer: ",0
+invalidMsg		BYTE		 "ERROR: You did not enter a signed number or your number was too big.",13,10,
+							 "Please try again: ",0
+inputNum		BYTE		  11 DUP (?)
+outputArr		SDWORD		  11 DUP (?)
+counter			DWORD		  ? 
+inputSize		DWORD		  11 
 
 
 .code
@@ -54,77 +55,101 @@ main PROC
   mDisplayString	OFFSET intro1													; print intro1 to screen  
   mDisplayString	OFFSET intro2													; print intro2 to screen 
 
+  PUSH		OFFSET inputNum
   PUSH		OFFSET invalidMsg
   PUSH		inputSize
   PUSH		OFFSET prompt 
-  PUSH		OFFSET inputNum
+  PUSH		OFFSET outputArr 
   PUSH		OFFSET counter 
-  CALL		ReadVal 
+  CALL		ReadVal
 
   INVOKE	ExitProcess,0																; exit to operating system
 main ENDP
 
 
 ReadVal		PROC
-  PUSH		EBP 
-  MOV		EBP, ESP 
+  LOCAL		loopCounter:DWORD
   PUSH		ECX
   PUSH		ESI
   PUSH		EBX 
-  PUSH		EAX 
   PUSH		EDX
-
-  MOV		ECX, 10						; start outer loop counter
+  PUSH		EDI 
 
 _start:
-  mGetString  [EBP + 16], [EBP + 12], [EBP + 8], [EBP + 20]
-  PUSH		ECX							; push outer loop counter before setting inner loop counter 
+  mGetString  [EBP + 16], [EBP + 28], [EBP + 8], [EBP + 20]						 
 
 _outerLoop: 
-  PUSH		EBX 
-  MOV		ESI, [EBP + 12]				; move character array to ESI 
+  PUSH		ECX							; push running total 
+  PUSH		EBX
+  MOV		ESI, [EBP + 28]				; move character array to ESI 
   MOV		EBX, [EBP + 8]				 
-  MOV		ECX, [EBX]					; move count of characters to ECX
-  POP		EBX 
+  MOV		ECX, [EBX]					; move char count from EBX to ECX to act as loop counter 
+  MOV		loopCounter, ECX
+  MOV		EDI, [EBP + 12]
+  POP		EBX
+  POP		ECX
+
+  MOV		EAX, 0
+  MOV		ECX, 0						; this will be the running total of calculations 
 
 	_innerLoop:	
-	  LODSB
+	  LODSB		
+	  JMP		_checkIfSign			; if counter and first index match, check sign 
 	  CMP		AL, 48
 	  JB		_invalidInput
 	  CMP		AL, 57
 	  JA		_invalidInput
-	  LOOP		_innerLoop
+	  JMP		_innerLoop
 	  JMP		_theEnd 
 
-	_checkSign:
+	_checkIfSign:
 	  CMP		AL, 45 
-	  JE		_changeSign 
+	  JE		_changeSign				; if equal to 45, sign is neg
 	  CMP		AL, 43 
-	  JE		_changeSign
-	  JMP		_invalidInput 
+	  JE		_changeSign				; if equal to 43 sign is positive 
+	  CMP		AL, 48					; if below 48 input is invalid 
+	  JB		_invalidInput
+	  CMP		AL, 57
+	  JA		_invalidInput
+	  JMP		_convertToNum			; else convert number to SDWORD arr 
+
+	_convertToNum: 
+	  SUB		AL, 48				
+	  PUSH		EAX						; push to preserve num stored in EAX 
+
+	  MOV		EAX, ECX 
+	  MOV		EBX, 10
+	  MUL		EBX
+
+	  POP		ECX 
+	  ADD		EAX, ECX
+	  MOV		ECX, EAX 
+
+	  DEC		loopCounter
+	  CMP		loopCounter, 0
+	  JE		_theEnd 		
+	  JMP		_innerLoop 
 
 	_changeSign: 
+	  PUSH		EAX
+	  MOV		EAX, 10					; if no number after -, input is invalid 
+	  POP		EAX 
+	  CMP		[ESI + 1], EAX
+	  JE		_invalidInput
 	  LOOP		_innerLoop 
 	  JMP		_start
 
 _invalidInput: 
-  mGetString  [EBP + 24], [EBP + 12], [EBP + 8], [EBP + 20]
+  mGetString  [EBP + 24], [EBP + 28], [EBP + 8], [EBP + 20]
   JMP		_outerLoop 
 
 _theEnd:
-  POP		ECX 
-  DEC		ECX
-  CMP		ECX, 0
-  JA		_start 
-
-
+  POP		EDI
   POP		EDX 
-  POP		EAX 
   POP		EBX 
   POP		ESI 
   POP		ECX
-  POP		EBP 
-  RET  20
+  RET
 ReadVal		ENDP 
 
 
