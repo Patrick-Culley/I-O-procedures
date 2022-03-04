@@ -26,8 +26,8 @@ mGetString		 MACRO	 chars, input, count, size				; prints prompt to user and gat
   MOV		EDX, input
   MOV		ECX, size 
   CALL		ReadString
-  MOV		EDI, count 
-  MOV		[EDI], EAX 
+  MOV		EDX, count 
+  MOV		[EDX], EAX 
   POP		ECX 
   POP		EAX
   POP		EDX
@@ -44,8 +44,8 @@ intro2			BYTE		 "Please provide 10 signed decimal integers.",13,10,
 prompt			BYTE		 "Please enter a signed integer: ",0
 invalidMsg		BYTE		 "ERROR: You did not enter a signed number or your number was too big.",13,10,
 							 "Please try again: ",0
-inputNum		BYTE		  11 DUP (?)
-outputArr		SDWORD		  11 DUP (?)
+inputNum		BYTE		  11 DUP (?)			; verify if null terminated val required 
+outputArr		SDWORD		  10 DUP (?)
 counter			DWORD		  ? 
 inputSize		DWORD		  11 
 
@@ -68,7 +68,7 @@ main ENDP
 
 
 ReadVal		PROC
-  LOCAL		loopCounter:DWORD, signCount:DWORD
+  LOCAL		loopCounter:DWORD, signCount:DWORD, skipCount:DWORD
   PUSH		ECX
   PUSH		ESI
   PUSH		EBX 
@@ -87,25 +87,29 @@ _outerLoop:
   MOV		EBX, [EBP + 8]				 
   MOV		ECX, [EBX]					; move char count from EBX to ECX to act as loop counter 
   MOV		loopCounter, ECX			; local variable used as loop counter 
-  MOV		EDI, [EBP + 12]
+  MOV		EDI, [EBP + 12]				; move SDWORD array to EDI to be filled 
   POP		EBX
   POP		ECX
 
   MOV		EAX, 0						; begins accumulator for convertToNum 
-  MOV		ECX, 0						; this will initialize the holding number
+  MOV		ECX, 0						; this will initialize the holding number for our calculations 
+  MOV		signCount, 0			
+  MOV		skipCount, 0
+
+  JMP		_verify1stSign					; check if first character is a positive or negative sign
 
 	_innerLoop:	
-	  LODSB		
-	  CMP		signCount, 1
-	  JE		_verifySign 
+	  LODSB
+
+	_signContinue: 
 	  CMP		AL, 48
 	  JB		_invalidInput
 	  CMP		AL, 57
 	  JA		_invalidInput
 	  JMP		_convertToNum
 
-
-    _verifySign: 
+    _verify1stSign:
+	  LODSB
 	  CMP		AL, 43
 	  JE		_goPosi
 	  CMP		AL, 45
@@ -114,28 +118,30 @@ _outerLoop:
 	  JB		_invalidInput 
 	  CMP		AL, 57
 	  JA		_invalidInput
-	  JMP		_convertToNum
+	  JMP		_signContinue  
 
 	_goPosi: 
 	  DEC		loopCounter
-	  DEC		signCount 
-	  JMP		_innerLoop
+	  JMP		_innerLoop  
 
 	_goNeg: 
 	  DEC		loopCounter
-	  DEC		signCount 
-	  MOV		AL, 0FEh
-	  SUB		AL, 2
+	  INC		signCount 
 	  JMP		_innerLoop 
 
 	_convertToNum: 
-	  SUB		AL, 48				
-	  PUSH		EAX						; push to preserve num stored in EAX 
+	  SUB		AL, 48		
+	  MOV		EBX, EAX
 	  MOV		EAX, ECX 
-	  MOV		EBX, 10
-	  MUL		EBX
-	  POP		ECX 
-	  ADD		EAX, ECX
+	  MOV		EDX, 10
+	  MUL		EDX
+
+	  JC		_invalidInput			; if carry flag is set, input is too large
+
+	  ADD		EAX, EBX
+	  JC		_invalidInput			; if carry flag is set, input is too large
+
+	  MOV		ECX, EAX 
 	  DEC		loopCounter
 	  CMP		loopCounter, 0
 	  JE		_theEnd 		
@@ -145,7 +151,16 @@ _invalidInput:
   mGetString  [EBP + 24], [EBP + 28], [EBP + 8], [EBP + 20]
   JMP		_outerLoop 
 
+_changeSign: 
+  NEG		EAX 
+  JMP		_exitReadVal 
+
 _theEnd:
+  CMP		signCount, 1
+  JE		_changeSign
+
+_exitReadVal: 
+  CALL		WriteInt
   POP		EDI
   POP		EDX 
   POP		EBX 
@@ -156,5 +171,5 @@ ReadVal		ENDP
 
 
 
-
+			
 END main
