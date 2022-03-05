@@ -44,10 +44,10 @@ intro2			BYTE		 "Please provide 10 signed decimal integers.",13,10,
 prompt			BYTE		 "Please enter a signed integer: ",0
 invalidMsg		BYTE		 "ERROR: You did not enter a signed number or your number was too big.",13,10,
 							 "Please try again: ",0
-inputNum		BYTE		  11 DUP (?)			; verify if null terminated val required 
+inputNum		BYTE		  12 DUP (?)			; verify if null terminated val required 
 outputArr		SDWORD		  10 DUP (?)
 counter			DWORD		  ? 
-inputSize		DWORD		  11 
+
 
 
 .code
@@ -57,7 +57,7 @@ main PROC
 
   PUSH		OFFSET inputNum
   PUSH		OFFSET invalidMsg
-  PUSH		inputSize
+  PUSH		LENGTHOF inputNum
   PUSH		OFFSET prompt 
   PUSH		OFFSET outputArr 
   PUSH		OFFSET counter 
@@ -68,57 +68,39 @@ main ENDP
 
 
 ReadVal		PROC
-  LOCAL		loopCounter:DWORD, signCount:DWORD, skipCount:DWORD
+  LOCAL		loopCounter:DWORD, signCount:DWORD        ;  inputNum[12]:BYTE
   PUSH		ECX
   PUSH		ESI
   PUSH		EBX 
   PUSH		EDX
-  PUSH		EDI 
-
-_start:
+  PUSH		EDI			
+  
   mGetString  [EBP + 16], [EBP + 28], [EBP + 8], [EBP + 20]						 
 
 _outerLoop: 
-  MOV		signCount, 1
-
-  PUSH		ECX							; push running total 
+  PUSH		ECX									; push running total 
   PUSH		EBX
-  MOV		ESI, [EBP + 28]				; move character array to ESI 
-  MOV		EBX, [EBP + 8]				 
-  MOV		ECX, [EBX]					; move char count from EBX to ECX to act as loop counter 
-  MOV		loopCounter, ECX			; local variable used as loop counter 
-  MOV		EDI, [EBP + 12]				; move SDWORD array to EDI to be filled 
+  MOV		ESI, [EBP + 28]						; move character array to ESI 
+  MOV		EBX, [EBP + 8]						 
+  MOV		ECX, [EBX]							; move char count from EBX to ECX to act as loop counter 
+  MOV		loopCounter, ECX					; local variable used as loop counter 
+  MOV		EDI, [EBP + 12]						; move SDWORD array to EDI to be filled 
   POP		EBX
   POP		ECX
 
-  MOV		EAX, 0						; begins accumulator for convertToNum 
-  MOV		ECX, 0						; this will initialize the holding number for our calculations 
+  MOV		EAX, 0								; begins accumulator for convertToNum 
+  MOV		ECX, 0								; this will initialize the holding number for our calculations 
   MOV		signCount, 0			
-  MOV		skipCount, 0
 
-  JMP		_verify1stSign					; check if first character is a positive or negative sign
-
-	_innerLoop:	
-	  LODSB
-
-	_signContinue: 
-	  CMP		AL, 48
-	  JB		_invalidInput
-	  CMP		AL, 57
-	  JA		_invalidInput
-	  JMP		_convertToNum
-
-    _verify1stSign:
+  CMP		loopCounter, 0						; compare if only sign and length = 1
+  JE		_invalidInput 
+  
 	  LODSB
 	  CMP		AL, 43
 	  JE		_goPosi
 	  CMP		AL, 45
 	  JE		_goNeg
-	  CMP		AL, 48 
-	  JB		_invalidInput 
-	  CMP		AL, 57
-	  JA		_invalidInput
-	  JMP		_signContinue  
+	  JMP		_signContinue 					; check if first character is a positive or negative sign
 
 	_goPosi: 
 	  DEC		loopCounter
@@ -127,7 +109,17 @@ _outerLoop:
 	_goNeg: 
 	  DEC		loopCounter
 	  INC		signCount 
-	  JMP		_innerLoop 
+
+	_innerLoop:	
+	  XOR		EAX, EAX					; clear EAX from previous calculation 
+	  LODSB
+
+	_signContinue: 
+	  CMP		AL, 48
+	  JB		_invalidInput
+	  CMP		AL, 57
+	  JA		_invalidInput
+	  JMP		_convertToNum 
 
 	_convertToNum: 
 	  SUB		AL, 48		
@@ -136,14 +128,15 @@ _outerLoop:
 	  MOV		EDX, 10
 	  MUL		EDX
 
-	  JC		_invalidInput			; if carry flag is set, input is too large
+	  JC		_invalidInput			; needs correction, if carry flag is set input is too large
 
 	  ADD		EAX, EBX
-	  JC		_invalidInput			; if carry flag is set, input is too large
+	  JC		_invalidInput			; needs correction, if carry flag is set input is too large
 
 	  MOV		ECX, EAX 
 	  DEC		loopCounter
 	  CMP		loopCounter, 0
+
 	  JE		_theEnd 		
 	  JMP		_innerLoop 
 
@@ -151,22 +144,28 @@ _invalidInput:
   mGetString  [EBP + 24], [EBP + 28], [EBP + 8], [EBP + 20]
   JMP		_outerLoop 
 
-_changeSign: 
-  NEG		EAX 
-  JMP		_exitReadVal 
 
 _theEnd:
   CMP		signCount, 1
-  JE		_changeSign
+  JE		_isNegative
+  CMP		EAX, 7FFFFFFFH	 ; 0111 1111 1111 1111 1111 1111 1111 1111 = 7FFFFFFFH
+  JA		_invalidInput
+  JMP		_exitReadVal
+
+_isNegative:
+  CMP		EAX, 80000000H    ; 1000 0000 0000 0000 0000 0000 0000 0000 = 80000000H
+  JA		_invalidInput
+  NEG		EAX 
 
 _exitReadVal: 
+
   CALL		WriteInt
   POP		EDI
   POP		EDX 
   POP		EBX 
   POP		ESI 
   POP		ECX
-  RET
+  RET		24
 ReadVal		ENDP 
 
 
