@@ -46,6 +46,7 @@ invalidMsg		BYTE		 "ERROR: You did not enter a signed number or your number was 
 							 "Please try again: ",0
 inputNum		BYTE		  13 DUP (?)						; 13 accounts for the null byte and +/- signs  
 outputArr		SDWORD		  10 DUP (?)
+num2String		BYTE		  1 DUP (?)
 outputCount		DWORD		  0 
 counter			DWORD		  ? 
 
@@ -69,8 +70,9 @@ _loopingChars:									; loop through userNum array to perform conversions
   ADD		EBX, 4
   LOOP		_loopingChars 
 
-  ;PUSH		OFFSET outputArr 
-  ;CALL		WriteVal 
+  PUSH		OFFSET num2String					; address of number stored in BYTE 
+  PUSH		OFFSET outputArr					; address of SDWORD array of nums 
+  CALL		WriteVal 
 
   INVOKE	ExitProcess,0						; exit to operating system
 main ENDP
@@ -131,10 +133,10 @@ _outerLoop:
 	  MOV		EDX, 10
 	  MUL		EDX
 
-	  JC		_invalidInput			; needs correction, if carry flag is set input is too large
+	  JC		_invalidInput			; if carry flag is set input is too large
 
 	  ADD		EAX, EBX
-	  JC		_invalidInput			; needs correction, if carry flag is set input is too large
+	  JC		_invalidInput			; if carry flag is set input is too large
 
 	  MOV		ECX, EAX 
 	  DEC		loopCounter
@@ -161,7 +163,7 @@ _isNegative:
   NEG		ECX 
 
 _exitReadVal: 
-  MOV		EBX, [EBP + 12]						; move address of SDWORD to be filled into EDI
+  MOV		EBX, [EBP + 12]						; move address of SDWORD to be filled into EBX
   MOV		[EBX], ECX	
 
   POP		EAX 
@@ -173,12 +175,36 @@ _exitReadVal:
 ReadVal		ENDP 
 
 
-;WriteVal	PROC
-  PUSH		EBP 	
+WriteVal	PROC
+  PUSH		EBP 
+  MOV		EBP, ESP 
 
+  MOV		EAX, [EBP + 8]					 ; load address of SDWORD into EAX 
+  MOV		EDI, [EBP + 12]					 ; load address of output into EDI
+  MOV		EAX, [EAX]						 ; loads element from EAX to be divided by in convert2Chars 
 
-  RET		4
-;WriteVal	ENDP 
+_convert2Chars: 
+  XOR		EDX, EDX						 ; clears remainder in EDX for division 
+  MOV		EBX, 10							 
+  IDIV		EBX								 ; divide by 10 due to decimal/base-10 
+
+  ADD		EDX, 48							 ; add 48 to remainder stored in EDX to get ASCII character  
+  PUSH		EDX
+  CMP		EAX, 0
+  JNZ		_convert2Chars					 ; if quotient != 0 keep looping 
+
+_displayChars:
+  POP		EAX
+  MOV		EDX, EAX
+
+  mDisplayString[EBP + 12]
+
+  STOSB
+  DEC		EDI 
+  JMP		_displayChars 
+  POP		EBP 
+  RET		8
+WriteVal	ENDP 
 
 			
 END main
