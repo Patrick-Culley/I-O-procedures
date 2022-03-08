@@ -49,12 +49,14 @@ space			BYTE		  " ",0
 comma			BYTE		  ",",0
 subSymbol		BYTE		  "-",0
 sumTitle		BYTE		  "The sum of all numbers is: ",0
+avgTitle		BYTE		  "The truncated average of all numbers is: ",0
 nullTerm		BYTE		  0 
 inputNum		BYTE		  13 DUP (?)						; 13 accounts for the null byte and +/- signs  
 outputArr		SDWORD		  10 DUP (?)
 num2String		BYTE		  1 DUP (?)
 outputCount		DWORD		  0 
 sumTotal		SDWORD		  0
+avgTotal		SDWORD		  0 
 counter			DWORD		  ? 
 
 
@@ -84,7 +86,6 @@ _loopingChars:									; loop through userNum array to perform conversions
   PUSH		OFFSET outputArr
   PUSH		OFFSET num2String					; address of number stored in BYTE 
   CALL		listOfNums 
-  mDisplayString	OFFSET nullTerm				; insert null terminator at end of list 
 
   PUSH		OFFSET sumTitle
   PUSH		OFFSET outputArr
@@ -92,6 +93,13 @@ _loopingChars:									; loop through userNum array to perform conversions
   PUSH		OFFSET sumTotal
   PUSH		OFFSET num2String
   CALL		calcSum 
+
+  PUSH		OFFSET sumTotal 
+  PUSH		OFFSET avgTitle 
+  PUSH		OFFSET subSymbol
+  PUSH		OFFSET num2String
+  PUSH		OFFSET avgTotal
+  CALL		calcAvg
 
   INVOKE	ExitProcess,0						 
 main ENDP
@@ -322,10 +330,10 @@ calcSum		PROC
   MOV		EBX, [EBP + 20]			; address of outputArr 
   MOV		EAX, [EBP + 12]			; address of sumTotal -- passed to WriteVal
   MOV		ECX, 10 
-  XOR		EDX, EDX 
+  XOR		EDX, EDX				; clears EDX to begin calculating sum 
 
   CALL		CrLf
-  mDisplayString [EBP + 24]
+  mDisplayString [EBP + 24]			; displays sum title 
 
 _beginSum: 
   ADD		EDX, [EBX]
@@ -338,7 +346,7 @@ _beginSum:
   PUSH		EDX
   PUSH		EAX
   PUSH		EDI
-  CALL		WriteVal
+  CALL		WriteVal				; address of SDWORD sum, BYTE, and minus sign are pushed and used by WriteVal
   CALL		CrLf
 
   POP		EDI 
@@ -349,5 +357,52 @@ _beginSum:
   POP		EBP 
   RET		20
 calcSum		ENDP 
+
+
+;-------------------------------------------------------------------
+; Name: calcAvg 
+;	Calculates the average of all user-entered numbers 
+;
+; Receives:		[EBP + 8]	=	address of avgTotal SDWORD
+;				[EBP + 12]	=	address of BYTE, used by WriteVal 
+;				[EBP + 16]	=	address of minus sign, used by WriteVal 
+;				[EBP + 20]	=	address of avg. title 
+;				[EBP + 24]	=	address of sumTotal
+;-------------------------------------------------------------------
+
+calcAvg		PROC
+  PUSH		EBP 
+  MOV		EBP, ESP 
+  PUSH		EDX
+  PUSH		EDI
+  PUSH		ESI
+  PUSH		EAX
+
+  MOV		ESI, [EBP + 24]				; sum total -- to be divided over by 10
+  MOV		EDI, [EBP + 8]				; average -- initialized as SDWORD
+  MOV		ECX, 10 
+
+  mDisplayString [EBP + 20]				; display average title 
+  MOV		EAX, [ESI] 
+  CDQ		
+  IDIV		ECX 
+  MOV		[EDI], EAX
+
+  MOV		EAX, [EBP + 12]				; move BYTE to pass to WriteVal 
+  MOV		ECX, [EBP + 16]				; move minus symbol to pass to WriteVal 
+
+  PUSH		ECX
+  PUSH		EDI
+  PUSH		EAX
+  CALL		WriteVal					; push offsets of BYTE, SDWORD average, and minus sign to be used by WriteVal
+  CALL		CrLf 
+
+  POP		EAX
+  POP		ESI 
+  POP		EDI 
+  POP		ECX
+  POP		EBP 
+  RET		20
+calcAvg		ENDP 
 			
 END main
