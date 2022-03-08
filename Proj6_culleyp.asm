@@ -1,7 +1,7 @@
 TITLE Low-level I/O procedures     (Proj6_culleyp.asm)
 
 ; Author: Patrick Culley
-; Last Modified: 2/27/2022 
+; Last Modified: 3/8/2022 
 ; OSU email address: culleyp@oregonstate.edu
 ; Course number/section:   CS271 Section 400
 ; Project Number: #6       Due Date: 3/13/2022
@@ -50,6 +50,7 @@ comma			BYTE		  ",",0
 subSymbol		BYTE		  "-",0
 sumTitle		BYTE		  "The sum of all numbers is: ",0
 avgTitle		BYTE		  "The truncated average of all numbers is: ",0
+goodbyeMsg		BYTE		  "Thank you and have a nice day!",0
 nullTerm		BYTE		  0 
 inputNum		BYTE		  13 DUP (?)						; 13 accounts for the null byte and +/- signs  
 outputArr		SDWORD		  10 DUP (?)
@@ -100,6 +101,8 @@ _loopingChars:									; loop through userNum array to perform conversions
   PUSH		OFFSET num2String
   PUSH		OFFSET avgTotal
   CALL		calcAvg
+
+  mDisplayString OFFSET goodbyeMsg
 
   INVOKE	ExitProcess,0						 
 main ENDP
@@ -373,6 +376,7 @@ calcSum		ENDP
 calcAvg		PROC
   PUSH		EBP 
   MOV		EBP, ESP 
+  PUSH		ECX
   PUSH		EDX
   PUSH		EDI
   PUSH		ESI
@@ -396,10 +400,12 @@ calcAvg		PROC
   PUSH		EAX
   CALL		WriteVal					; push offsets of BYTE, SDWORD average, and minus sign to be used by WriteVal
   CALL		CrLf 
+  CALL		CrLf 
 
   POP		EAX
   POP		ESI 
   POP		EDI 
+  POP		EDX 
   POP		ECX
   POP		EBP 
   RET		20
