@@ -48,13 +48,14 @@ listTitle		BYTE		 "You entered the following numbers: ",13,10,0
 space			BYTE		  " ",0
 comma			BYTE		  ",",0
 subSymbol		BYTE		  "-",0
+sumTitle		BYTE		  "The sum of all numbers is: ",0
 nullTerm		BYTE		  0 
 inputNum		BYTE		  13 DUP (?)						; 13 accounts for the null byte and +/- signs  
 outputArr		SDWORD		  10 DUP (?)
 num2String		BYTE		  1 DUP (?)
 outputCount		DWORD		  0 
+sumTotal		SDWORD		  0
 counter			DWORD		  ? 
-
 
 
 .code
@@ -74,6 +75,7 @@ _loopingChars:									; loop through userNum array to perform conversions
   CALL		ReadVal
   ADD		EBX, 4								 
   LOOP		_loopingChars 
+  CALL		CrLf 
 				
   PUSH		OFFSET listTitle					; title of list 
   PUSH		OFFSET comma						; insert commas between nums 
@@ -82,9 +84,14 @@ _loopingChars:									; loop through userNum array to perform conversions
   PUSH		OFFSET outputArr
   PUSH		OFFSET num2String					; address of number stored in BYTE 
   CALL		listOfNums 
-
   mDisplayString	OFFSET nullTerm				; insert null terminator at end of list 
 
+  PUSH		OFFSET sumTitle
+  PUSH		OFFSET outputArr
+  PUSH		OFFSET subSymbol
+  PUSH		OFFSET sumTotal
+  PUSH		OFFSET num2String
+  CALL		calcSum 
 
   INVOKE	ExitProcess,0						 
 main ENDP
@@ -200,10 +207,11 @@ WriteVal	PROC
   PUSH		EBX
   PUSH		EDX 
   PUSH		ECX 
+  PUSH		EDI 
 
   MOV		EDI, [EBP + 8]					 ; load address of output into EDI
-  MOV		EAX, [EBP + 12]					 ; load address of SDWORD into EAX 
-  MOV		EAX, [EAX]						 ; loads element from SDWORD to be divided in convert2Chars
+  MOV		EDX, [EBP + 12]					 ; load address of SDWORD into EDX 
+  MOV		EAX, [EDX]						 ; loads element at SDWORD address to be divided in convert2Chars
   MOV		ECX, 0							
   PUSH		ECX								 ; push 0 to indicate end of array
 
@@ -214,7 +222,6 @@ WriteVal	PROC
 _makeNeg: 
   mDisplayString [EBP + 16]
   NEG		EAX
-  
   
 _convertToChars: 
   XOR		EDX, EDX						 ; clears remainder in EDX for division 
@@ -229,14 +236,13 @@ _convertToChars:
 _displayChars:
   POP		EAX								 ; pop digits to EAX in reverse 		
   MOV		EDX, EAX						 ; move to EDX for printing 
-
   mDisplayString[EBP + 8]					 ; display individual character 
-
   STOSB
-  DEC		EDI 
+  SUB		EDI, 1							 ; gets us back to the original spot 
   CMP		EAX, 0
   JNZ		_displayChars 
 
+  POP		EDI 
   POP		ECX 
   POP		EDX
   POP		EBX
@@ -274,14 +280,14 @@ loopNums:
   PUSH		EAX
   PUSH		EBX 
   CALL		WriteVal					; Call WriteVal to convert each number 
-  CMP		ECX, 1 
+  CMP		ECX, 1						; if last count print num and jump to end to avoid space and comma 
   JE		_finish 
   ADD		EAX, 4 
   mDisplayString [EBP + 24]				; Write comma after number 
   mDisplayString [EBP + 20]			    ; Write space after comma 
   LOOP		loopNums
 
-
+  CALL		CrLf
 
 _finish: 
   POP		EDX 
@@ -291,5 +297,57 @@ _finish:
   POP		EBP 
   RET		24
 listOfNums	ENDP
+
+;---------------------------------------------------------------------------------
+; Name: calcSum 
+;	Receives an array of SDWORDs and calculates the sum 
+;
+; Receives:			[EBP + 24]	=	address of title used in mDisplayString 
+;					[EBP + 20]	=	address of outputArr. Contains array of SDWORDs 
+;					[EBP + 16]	=	address of minus symbol, passed to WriteVal
+;					[EBP + 12]	=	address of sumTotal to be filled, passed to WriteVal 
+;					[EBP + 8]	=	address of num2String BYTE, passed to WriteVal 
+;----------------------------------------------------------------------------------
+
+calcSum		PROC 
+  PUSH		EBP 
+  MOV		EBP, ESP 
+  PUSH		ECX 
+  PUSH		EAX 
+  PUSH		EBX 
+  PUSH		EDX 
+  PUSH		EDI
+
+  MOV		EDI, [EBP + 8]			; address of num2String -- passed to WriteVal 
+  MOV		EBX, [EBP + 20]			; address of outputArr 
+  MOV		EAX, [EBP + 12]			; address of sumTotal -- passed to WriteVal
+  MOV		ECX, 10 
+  XOR		EDX, EDX 
+
+  CALL		CrLf
+  mDisplayString [EBP + 24]
+
+_beginSum: 
+  ADD		EDX, [EBX]
+  MOV		[EAX], EDX 
+  ADD		EBX, 4 
+  LOOP		_beginSum 
+
+  MOV		EDX, [EBP + 16]			; address of sub sign -- passed to WriteVal 
+
+  PUSH		EDX
+  PUSH		EAX
+  PUSH		EDI
+  CALL		WriteVal
+  CALL		CrLf
+
+  POP		EDI 
+  POP		EDX 
+  POP		EBX 
+  POP		EAX
+  POP		ECX
+  POP		EBP 
+  RET		20
+calcSum		ENDP 
 			
 END main
