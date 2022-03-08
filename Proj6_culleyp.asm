@@ -44,6 +44,11 @@ intro2			BYTE		 "Please provide 10 signed decimal integers.",13,10,
 prompt			BYTE		 "Please enter a signed integer: ",0
 invalidMsg		BYTE		 "ERROR: You did not enter a signed number or your number was too big.",13,10,
 							 "Please try again: ",0
+listTitle		BYTE		 "You entered the following numbers: ",13,10,0
+space			BYTE		  " ",0
+comma			BYTE		  ",",0
+subSymbol		BYTE		  "-",0
+nullTerm		BYTE		  0 
 inputNum		BYTE		  13 DUP (?)						; 13 accounts for the null byte and +/- signs  
 outputArr		SDWORD		  10 DUP (?)
 num2String		BYTE		  1 DUP (?)
@@ -61,20 +66,27 @@ main PROC
   MOV		ECX, 10
 _loopingChars:									; loop through userNum array to perform conversions 
   PUSH		OFFSET inputNum
-  PUSH		OFFSET invalidMsg
+  PUSH		OFFSET invalidMsg					; address of Error message 
   PUSH		LENGTHOF inputNum
-  PUSH		OFFSET prompt
-  PUSH		EBX 
-  PUSH		OFFSET counter
+  PUSH		OFFSET prompt						; address of prompt 
+  PUSH		EBX									; contains address of output array 
+  PUSH		OFFSET counter					
   CALL		ReadVal
-  ADD		EBX, 4
+  ADD		EBX, 4								 
   LOOP		_loopingChars 
-
+				
+  PUSH		OFFSET listTitle					; title of list 
+  PUSH		OFFSET comma						; insert commas between nums 
+  PUSH		OFFSET space						; insert spaces between nums 
+  PUSH		OFFSET subSymbol	
+  PUSH		OFFSET outputArr
   PUSH		OFFSET num2String					; address of number stored in BYTE 
-  PUSH		OFFSET outputArr					; address of SDWORD array of nums 
-  CALL		WriteVal 
+  CALL		listOfNums 
 
-  INVOKE	ExitProcess,0						; exit to operating system
+  mDisplayString	OFFSET nullTerm				; insert null terminator at end of list 
+
+
+  INVOKE	ExitProcess,0						 
 main ENDP
 
 
@@ -107,6 +119,7 @@ _outerLoop:
 	  CMP		AL, 45
 	  JE		_goNeg
 	  JMP		_signContinue 					; jump to beginning of vaidation to check if input is in range of [48...57]
+	
 	_goPosi: 
 	  DEC		loopCounter
 	  JMP		_innerLoop  
@@ -116,7 +129,7 @@ _outerLoop:
 	  INC		signCount						; if sign count is set to 1 then negation is made below in 
 
 	_innerLoop:	
-	  XOR		EAX, EAX					; clear EAX from previous calculation 
+	  XOR		EAX, EAX						; clear EAX from previous calculation 
 	  LODSB
 
 	_signContinue: 
@@ -149,7 +162,6 @@ _invalidInput:
   mGetString  [EBP + 24], [EBP + 28], [EBP + 8], [EBP + 20]
   JMP		_outerLoop 
 
-
 _theEnd:
   CMP		signCount, 1
   JE		_isNegative
@@ -174,16 +186,37 @@ _exitReadVal:
   RET		24
 ReadVal		ENDP 
 
-
+;-------------------------------------------------------
+; Name: WriteVal 
+;
+; Receives: [EBP + 8]		=  Address of output BYTE 
+;           [EBP + 12]		=  Address of SDWORD array 
+;			[EBP + 16]		=  Address of minus sign 
+;-------------------------------------------------------
 WriteVal	PROC
   PUSH		EBP 
   MOV		EBP, ESP 
+  PUSH		EAX
+  PUSH		EBX
+  PUSH		EDX 
+  PUSH		ECX 
 
-  MOV		EAX, [EBP + 8]					 ; load address of SDWORD into EAX 
-  MOV		EDI, [EBP + 12]					 ; load address of output into EDI
-  MOV		EAX, [EAX]						 ; loads element from EAX to be divided by in convert2Chars 
+  MOV		EDI, [EBP + 8]					 ; load address of output into EDI
+  MOV		EAX, [EBP + 12]					 ; load address of SDWORD into EAX 
+  MOV		EAX, [EAX]						 ; loads element from SDWORD to be divided in convert2Chars
+  MOV		ECX, 0							
+  PUSH		ECX								 ; push 0 to indicate end of array
 
-_convert2Chars: 
+  CMP		EAX, 0
+  JS		_makeNeg
+  JMP		_convertToChars 
+
+_makeNeg: 
+  mDisplayString [EBP + 16]
+  NEG		EAX
+  
+  
+_convertToChars: 
   XOR		EDX, EDX						 ; clears remainder in EDX for division 
   MOV		EBX, 10							 
   IDIV		EBX								 ; divide by 10 due to decimal/base-10 
@@ -191,20 +224,72 @@ _convert2Chars:
   ADD		EDX, 48							 ; add 48 to remainder stored in EDX to get ASCII character  
   PUSH		EDX
   CMP		EAX, 0
-  JNZ		_convert2Chars					 ; if quotient != 0 keep looping 
+  JNZ		_convertToChars					 ; if quotient != 0 keep looping 
 
 _displayChars:
-  POP		EAX
-  MOV		EDX, EAX
+  POP		EAX								 ; pop digits to EAX in reverse 		
+  MOV		EDX, EAX						 ; move to EDX for printing 
 
-  mDisplayString[EBP + 12]
+  mDisplayString[EBP + 8]					 ; display individual character 
 
   STOSB
   DEC		EDI 
-  JMP		_displayChars 
+  CMP		EAX, 0
+  JNZ		_displayChars 
+
+  POP		ECX 
+  POP		EDX
+  POP		EBX
+  POP		EAX
   POP		EBP 
-  RET		8
+  RET		12
 WriteVal	ENDP 
 
+
+;-------------------------------------------------------------------
+; Procedure: listOfNums 
+;	Loops through the filled array of numbers in the SDWORD
+;   and prints all 10 user-entered numbers. 
+;
+; Receives:		[EBP + 8]	=	address of SDWORD array of numbers
+;				[EBP + 12]	=	address of character BYTE 
+;-------------------------------------------------------------------
+listOfNums	PROC
+  PUSH		EBP
+  MOV		EBP, ESP 
+  PUSH		ECX							; ECX will be counter to loop through SDWORD of numbers
+  PUSH		EBX							; EBX will hold the address of the filled SDWORD 
+  PUSH		EAX							
+  PUSH		EDX							; EDX points to address of negative sign 
+
+  MOV		EDX, [EBP + 16]				; address of minus sign 
+  MOV		EAX, [EBP + 12]				; address of SDWORD array of numbers
+  MOV		EBX, [EBP + 8]				
+  MOV		ECX, 10						; loop though all 10 numbers 
+
+  mDisplayString [EBP + 28]				; Writes title to screen 
+
+loopNums: 
+  PUSH		EDX 
+  PUSH		EAX
+  PUSH		EBX 
+  CALL		WriteVal					; Call WriteVal to convert each number 
+  CMP		ECX, 1 
+  JE		_finish 
+  ADD		EAX, 4 
+  mDisplayString [EBP + 24]				; Write comma after number 
+  mDisplayString [EBP + 20]			    ; Write space after comma 
+  LOOP		loopNums
+
+
+
+_finish: 
+  POP		EDX 
+  POP		EAX 
+  POP		EBX 
+  POP		ECX 
+  POP		EBP 
+  RET		24
+listOfNums	ENDP
 			
 END main
