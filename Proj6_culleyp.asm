@@ -45,14 +45,12 @@ prompt			BYTE		 "Please enter a signed integer: ",0
 invalidMsg		BYTE		 "ERROR: You did not enter a signed number or your number was too big.",13,10,
 							 "Please try again: ",0
 listTitle		BYTE		 "You entered the following numbers: ",13,10,0
-space			BYTE		  " ",0
-comma			BYTE		  ",",0
-subSymbol		BYTE		  "-",0
+comma			BYTE		  ", ",0
 sumTitle		BYTE		  "The sum of all numbers is: ",0
 avgTitle		BYTE		  "The truncated average of all numbers is: ",0
-goodbyeMsg		BYTE		  "Thank you and have a nice day!",0
+goodbyeMsg		BYTE		  "Thank you and have a nice day!",13,10,0
 nullTerm		BYTE		  0 
-inputNum		BYTE		  13 DUP (?)						; 13 accounts for the null byte and +/- signs  
+inputNum		BYTE		  13 DUP (?)						  
 outputArr		SDWORD		  10 DUP (?)
 num2String		BYTE		  1 DUP (?)
 outputCount		DWORD		  0 
@@ -82,24 +80,16 @@ _loopingChars:									; loop through userNum array to perform conversions
 				
   PUSH		OFFSET listTitle					; title of list 
   PUSH		OFFSET comma						; insert commas between nums 
-  PUSH		OFFSET space						; insert spaces between nums 
-  PUSH		OFFSET subSymbol	
   PUSH		OFFSET outputArr
-  PUSH		OFFSET num2String					; address of number stored in BYTE 
   CALL		listOfNums 
 
   PUSH		OFFSET sumTitle
   PUSH		OFFSET outputArr
-  PUSH		OFFSET subSymbol
   PUSH		OFFSET sumTotal
-  PUSH		OFFSET num2String
   CALL		calcSum 
 
-  PUSH		OFFSET sumTotal 
+  PUSH		sumTotal 
   PUSH		OFFSET avgTitle 
-  PUSH		OFFSET subSymbol
-  PUSH		OFFSET num2String
-  PUSH		OFFSET avgTotal
   CALL		calcAvg
 
   mDisplayString OFFSET goodbyeMsg
@@ -108,8 +98,29 @@ _loopingChars:									; loop through userNum array to perform conversions
 main ENDP
 
 
+;------------------------------------------------------------------------------
+; Name: ReadVal 
+;	Uses the mGetString macro to obtain user input as a string of digits.
+;	If no valid input (I.E., nothing entered, number too large/small, or
+;	input is not a number), error is displayed and user prompted to 
+;	enter a valid integer. Input stored in an array of SDWORDs. 
+;
+; Preconditions: None
+;
+; Postconditions: None
+;
+; Receives: [EBP + 8]	=	counter, used to act as loop counter 
+;			[EBP + 12]	=	EBX, contains address of output array of SDWORDs
+;			[EBP + 16]	=	prompt, address of user input prompt 
+;			[EBP + 20]	=	length of input number 
+;			[EBP + 24]	=	invalidMsg, address of invalid message prompt
+;			[EBP + 28]	=	inputNum, address of input number BYTE 
+;
+; Returns: Value stored in EBX which holds the output array of SDWORDs.
+;------------------------------------------------------------------------------
+
 ReadVal		PROC
-  LOCAL		loopCounter:DWORD, signCount:DWORD        ;  inputNum[12]:BYTE
+  LOCAL		loopCounter:DWORD, signCount:DWORD         
   PUSH		ECX
   PUSH		ESI
   PUSH		EBX 
@@ -118,15 +129,20 @@ ReadVal		PROC
 
   mGetString  [EBP + 16], [EBP + 28], [EBP + 8], [EBP + 20]
 
+; -----------------------------------------------------------------------------
+; Outer loop iterates through user input, stored as array of BYTEs, and checks
+;	to verify is input is valid. Input is checked if positive and negative and 
+;   if valid, array of SDWORDs is filled. 
+; -----------------------------------------------------------------------------
 _outerLoop: 
   MOV		ESI, [EBP + 28]						; move character input array stored in InputNum to ESI 
   MOV		EBX, [EBP + 8]						 
   MOV		ECX, [EBX]							; move char count from EBX to ECX to act as loop counter 
-  MOV		loopCounter, ECX					; local variable used as loop counter 
+  MOV		loopCounter, ECX					; local procedure variable used as loop counter 
 
   MOV		EAX, 0								; begins accumulator for convertToNum 
   MOV		ECX, 0								; this will initialize the holding number for our calculations 
-  MOV		signCount, 0			
+  MOV		signCount, 0						; local procedure variable used to keep track of sign 
 
   CMP		loopCounter, 0						; if no user input counter is zero 
   JE		_invalidInput 
@@ -164,10 +180,10 @@ _outerLoop:
 	  MOV		EDX, 10
 	  MUL		EDX
 
-	  JC		_invalidInput			; if carry flag is set input is too large
+	  JC		_invalidInput					; if carry flag is set input is too large
 
 	  ADD		EAX, EBX
-	  JC		_invalidInput			; if carry flag is set input is too large
+	  JC		_invalidInput					; if carry flag is set input is too large
 
 	  MOV		ECX, EAX 
 	  DEC		loopCounter
@@ -183,12 +199,12 @@ _invalidInput:
 _theEnd:
   CMP		signCount, 1
   JE		_isNegative
-  CMP		ECX, 7FFFFFFFH	 ; 0111 1111 1111 1111 1111 1111 1111 1111 = 7FFFFFFFH
+  CMP		ECX, 7FFFFFFFH						; 0111 1111 1111 1111 1111 1111 1111 1111 = 7FFFFFFFH
   JA		_invalidInput
   JMP		_exitReadVal
 
 _isNegative:
-  CMP		ECX, 80000000H    ; 1000 0000 0000 0000 0000 0000 0000 0000 = 80000000H
+  CMP		ECX, 80000000H						; 1000 0000 0000 0000 0000 0000 0000 0000 = 80000000H
   JA		_invalidInput
   NEG		ECX 
 
@@ -204,62 +220,77 @@ _exitReadVal:
   RET		24
 ReadVal		ENDP 
 
-;-------------------------------------------------------
+;-----------------------------------------------------------------------------
 ; Name: WriteVal 
 ;
-; Receives: [EBP + 8]		=  Address of output BYTE 
-;           [EBP + 12]		=  Address of SDWORD array 
-;			[EBP + 16]		=  Address of minus sign 
-;-------------------------------------------------------
-WriteVal	PROC
+; Converts user input, stored as an array of SDWORDs, into a string of ASCII
+;	characters. Uses the mDisplayString macro to display the SDWORD value to 
+;	the output. 
+;
+; Preconditions: Valid user input stored in an array of SDWORDs.
+;
+; Postconditions: None. 
+;
+; Receives: [EBP + 8]	=  SDWORD value to be displayed  
+;-----------------------------------------------------------------------------
+WriteVal	PROC 
   PUSH		EBP 
-  MOV		EBP, ESP 
+  MOV		EBP, ESP
+  SUB		ESP, 12								; local space reserved 
   PUSH		EAX
   PUSH		EBX
   PUSH		EDX 
-  PUSH		ECX 
   PUSH		EDI 
+  PUSHFD 
+  
+  STD										
 
-  MOV		EDI, [EBP + 8]					 ; load address of output into EDI
-  MOV		EDX, [EBP + 12]					 ; load address of SDWORD into EDX 
-  MOV		EAX, [EDX]						 ; loads element at SDWORD address to be divided in convert2Chars
-  MOV		ECX, 0							
-  PUSH		ECX								 ; push 0 to indicate end of array
+  MOV		EDI, EBP							; load address of output into EDI
+  DEC		EDI 
+  XOR		EAX, EAX
+  STOSB
 
-  CMP		EAX, 0
+  MOV		EBX, 10		
+
+  MOV		EDX, [EBP + 8]						; loads element at SDWORD address to be divided in convert2Chars
+  CMP		EDX, 0
   JS		_makeNeg
   JMP		_convertToChars 
 
 _makeNeg: 
-  mDisplayString [EBP + 16]
-  NEG		EAX
+  NEG		EDX
   
 _convertToChars: 
-  XOR		EDX, EDX						 ; clears remainder in EDX for division 
-  MOV		EBX, 10							 
-  IDIV		EBX								 ; divide by 10 due to decimal/base-10 
+  MOV		EAX, EDX 
+  XOR		EDX, EDX  
+  DIV		EBX									; divide by 10 due to decimal/base-10 
 
-  ADD		EDX, 48							 ; add 48 to remainder stored in EDX to get ASCII character  
-  PUSH		EDX
-  CMP		EAX, 0
-  JNZ		_convertToChars					 ; if quotient != 0 keep looping 
-
-_displayChars:
-  POP		EAX								 ; pop digits to EAX in reverse 		
-  MOV		EDX, EAX						 ; move to EDX for printing 
-  mDisplayString[EBP + 8]					 ; display individual character 
+  XCHG		EDX, EAX 
+  ADD		AL, 48								; add 48 to remainder stored in EDX to get ASCII character  
   STOSB
-  SUB		EDI, 1							 ; gets us back to the original spot 
-  CMP		EAX, 0
-  JNZ		_displayChars 
+  CMP		EDX, 0
+  JNZ		_convertToChars						; if quotient != 0 keep looping 
 
+  CMP		DWORD PTR [EBP + 8], 0
+  JS		_isNeg
+  JMP		_writeStr
+  
+_isNeg:  
+  MOV		AL,'-'
+  STOSB				 
+
+_writeStr: 
+  INC		EDI 
+  mDisplayString EDI					  
+
+  POPFD
   POP		EDI 
-  POP		ECX 
   POP		EDX
   POP		EBX
   POP		EAX
+  MOV		ESP, EBP 
   POP		EBP 
-  RET		12
+  RET		4
 WriteVal	ENDP 
 
 
@@ -269,7 +300,6 @@ WriteVal	ENDP
 ;   and prints all 10 user-entered numbers. 
 ;
 ; Receives:		[EBP + 8]	=	address of SDWORD array of numbers
-;				[EBP + 12]	=	address of character BYTE 
 ;-------------------------------------------------------------------
 listOfNums	PROC
   PUSH		EBP
@@ -279,23 +309,18 @@ listOfNums	PROC
   PUSH		EAX							
   PUSH		EDX							; EDX points to address of negative sign 
 
-  MOV		EDX, [EBP + 16]				; address of minus sign 
-  MOV		EAX, [EBP + 12]				; address of SDWORD array of numbers
-  MOV		EBX, [EBP + 8]				
+  MOV		EAX, [EBP + 8]				; address of SDWORD array of numbers			
   MOV		ECX, 10						; loop though all 10 numbers 
 
-  mDisplayString [EBP + 28]				; Writes title to screen 
+  mDisplayString [EBP + 16]				; Writes title to screen 
 
 loopNums: 
-  PUSH		EDX 
-  PUSH		EAX
-  PUSH		EBX 
+  PUSH		DWORD PTR [EAX]
   CALL		WriteVal					; Call WriteVal to convert each number 
   CMP		ECX, 1						; if last count print num and jump to end to avoid space and comma 
   JE		_finish 
   ADD		EAX, 4 
-  mDisplayString [EBP + 24]				; Write comma after number 
-  mDisplayString [EBP + 20]			    ; Write space after comma 
+  mDisplayString [EBP + 12]				; Write comma and space after number 
   LOOP		loopNums
 
   CALL		CrLf
@@ -306,7 +331,7 @@ _finish:
   POP		EBX 
   POP		ECX 
   POP		EBP 
-  RET		24
+  RET		12
 listOfNums	ENDP
 
 ;---------------------------------------------------------------------------------
@@ -329,26 +354,22 @@ calcSum		PROC
   PUSH		EDX 
   PUSH		EDI
 
-  MOV		EDI, [EBP + 8]			; address of num2String -- passed to WriteVal 
-  MOV		EBX, [EBP + 20]			; address of outputArr 
-  MOV		EAX, [EBP + 12]			; address of sumTotal -- passed to WriteVal
+  MOV		EBX, [EBP + 12]			; address of outputArr 
+  MOV		EAX, [EBP + 8]			; address of sumTotal -- passed to WriteVal
   MOV		ECX, 10 
   XOR		EDX, EDX				; clears EDX to begin calculating sum 
 
   CALL		CrLf
-  mDisplayString [EBP + 24]			; displays sum title 
+  mDisplayString [EBP + 16]			; displays sum title 
 
 _beginSum: 
   ADD		EDX, [EBX]
-  MOV		[EAX], EDX 
   ADD		EBX, 4 
   LOOP		_beginSum 
 
-  MOV		EDX, [EBP + 16]			; address of sub sign -- passed to WriteVal 
+  MOV		[EAX], EDX 
 
   PUSH		EDX
-  PUSH		EAX
-  PUSH		EDI
   CALL		WriteVal				; address of SDWORD sum, BYTE, and minus sign are pushed and used by WriteVal
   CALL		CrLf
 
@@ -358,7 +379,7 @@ _beginSum:
   POP		EAX
   POP		ECX
   POP		EBP 
-  RET		20
+  RET		12
 calcSum		ENDP 
 
 
@@ -382,21 +403,13 @@ calcAvg		PROC
   PUSH		ESI
   PUSH		EAX
 
-  MOV		ESI, [EBP + 24]				; sum total -- to be divided over by 10
-  MOV		EDI, [EBP + 8]				; average -- initialized as SDWORD
   MOV		ECX, 10 
 
-  mDisplayString [EBP + 20]				; display average title 
-  MOV		EAX, [ESI] 
+  mDisplayString [EBP + 8]				; display average title 
+  MOV		EAX, [EBP + 12] 
   CDQ		
   IDIV		ECX 
-  MOV		[EDI], EAX
 
-  MOV		EAX, [EBP + 12]				; move BYTE to pass to WriteVal 
-  MOV		ECX, [EBP + 16]				; move minus symbol to pass to WriteVal 
-
-  PUSH		ECX
-  PUSH		EDI
   PUSH		EAX
   CALL		WriteVal					; push offsets of BYTE, SDWORD average, and minus sign to be used by WriteVal
   CALL		CrLf 
@@ -408,7 +421,7 @@ calcAvg		PROC
   POP		EDX 
   POP		ECX
   POP		EBP 
-  RET		20
+  RET		8
 calcAvg		ENDP 
 			
 END main
